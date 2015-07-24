@@ -1,7 +1,7 @@
 # Apache Spark 源码阅读
 
 ## Overview
-本文档是我去年（2014）年末学习 [Apache Spark](http://spark.apache.org/) 源码时所留下的阅读笔记，原为 Microsoft Word 文档。近期出于毕业求职需要，重温源码，顺带整理了下原文档，转换成 Markdown 文档，修正原文中出现的一些错误，对缺漏之处也做了相应补全。整理过后的文档会放在我的 [Github 仓库](https://github.com/ihainan/SparkInternals) 上。
+本文档是我去年（2014）年末学习 [Apache Spark](http://spark.apache.org/) 源码时所留下的阅读笔记，原为 Microsoft Word 文档。近期出于毕业求职需要，重温源码，顺带整理了下原文档，转换成 Markdown 文档，修正原文中出现的一些错误，对缺漏之处也做了相应补全。整理过后的文档会放在我的 [Github 仓库](https://github.com/ihainan/SparkInternals) 和 [GitBook](http://ihainan.gitbooks.io/spark-source-code/content/) 上。
 
 __本文档对应的 Apache Spark 源码版本为 {{book.sparkVersion}}__。后期如果时间充裕，会对最新版的源码进行适配。
 
