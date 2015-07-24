@@ -1,0 +1,5 @@
+{
+    "variables": {
+        "sparkVersion": "1.2.0"
+    }
+}
