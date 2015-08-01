@@ -27,6 +27,10 @@ RDD 只是数据集的抽象，因此分区内部并不会存储具体的数据�
 
 `Partition` 是一个 Trait 类。`Partition` 衍生出许多子类，例如 `CoGroupPartition`、`HadoopPartition` 等等。
 
+在后文中，我会用下图所示图形来表示 RDD 以及 RDD 内部的分区，RDD 上方文字表示该 RDD 的类型，分区颜色为紫红色表示该 RDD 执行了持久化操作（`persist`、`Cache`、`checkpoint` 或者数据原本存储在文件系统当中），蓝色表示该 RDD 为普通 RDD。
+
+![RDD and Partition](../media/images/section1/RDDAndPartition.png)
+
 ## 分区接口
 `RDD` 抽象类中定义了 `_partitions` 数组成员和 `partitions()` 方法，后者用于获取 RDD 中的所有分区。`RDD` 的子类需要自行实现 `getPartitions()` 函数。
  
