@@ -1,6 +1,6 @@
 # Summary
 
-* [RDD 解析](section1/README.md)
+* [RDD 内部结构](section1/README.md)
 	* [RDD 分区](section1/rddPartitions.md)
 	* [RDD 依赖](section1/rddDependencies.md)
 	* [常见转换操作的依赖图](section1/dependencyGraphs.md)

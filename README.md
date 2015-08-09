@@ -38,7 +38,7 @@ __本文档对应的 Apache Spark 源码版本为 {{book.sparkVersion}}__。后�
 
 ![Source Avro](media/images/introduction/IDEA_Mark_Avro_Source.png)
 
-同样，将 spark-hive_2.10 模块内的 v0.13.0（或者 v0.12.0，__根据编译时候的 Hive 版本决定，默认是 Hive 0.13__） -> src -> main -> scala 目录标记为 Source 目录。
+同样，将 spark-hive\_2.10 模块内的 v0.13.0（或者 v0.12.0，__根据编译时候的 Hive 版本决定，默认是 Hive 0.13__） -> src -> main -> scala 目录标记为 Source 目录。
 
 ![Source Hive](media/images/introduction/IDEA_Mark_Hive_Source.png)
 
@@ -54,6 +54,9 @@ __本文档对应的 Apache Spark 源码版本为 {{book.sparkVersion}}__。后�
 	R: Result，表测试结果。
 
 ![Debug](media/images/introduction/IDEA_Debug.png)
+
+
+在学习过程中，Matei Zaharia 发表的论文 ___Resilient Distributed Datasets: A Fault-Tolerant Abstraction for In-Memory Cluster Computing___ 和他的博士毕业论文 ___An Architecture for Fast and General Data Processing on Large Clusters___ ，Jerry Lead 关于 Apache Spark 内部机制的[系列文章](https://github.com/JerryLead/SparkInternals)，ColZer 关于 Apache Spark 的 [学习笔记](https://github.com/ColZer/DigAndBuried)，等等文章资料都给了我相当多的帮助。在阅读本系列文章时，我十分推荐配合上面几篇材料一起学习，不同文章解析 Apache Spark 的角度各不相同，相信都会对你有所启发。
 
 ## LICENSE
 Licensed [BY-NC-SA Creative Commons](http://creativecommons.org/licenses/by-nc-sa/4.0/). 
