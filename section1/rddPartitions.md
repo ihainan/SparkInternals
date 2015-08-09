@@ -6,7 +6,7 @@ RDD 内部的数据集合在逻辑上（物理上则不一定）被划分成多�
 
 在后文中，我会用下图所示图形来表示 RDD 以及 RDD 内部的分区，RDD 上方文字表示该 RDD 的类型，分区颜色为紫红色表示该 RDD 执行了持久化操作（`persist`、`Cache`、`checkpoint` 或者数据原本存储在存储介质当中），蓝色表示该 RDD 为普通 RDD。
 
-![RDD and Partition](../media/images/section1/RDDAndPartition.png)
+![RDD and Partition](../media/images/section1/RDDPartitions/RDDAndPartition.png)
 
 ## 分区实现
 
