@@ -59,7 +59,7 @@ Shuffle 依赖的对应实现为 `ShuffleDependency` 类，其源码如下。`
 
 `ShuffleDependency` 类中几个成员的作用如下：
 
-- `rdd`：用于表示 Shuffle 依赖中，子 RDD 所依赖的父 RDD。- `shuffleId`：- `shuffleHandle`：- `partitioner`：分区器，用于决定 Shuffle 过程中 Reducer 的个数（实际上是子 RDD 的分区个数）以及 Map 端的一条数据记录应该分配给哪一个 Reducer，也可以被用在 `CoGroupedRDD` 中，确定父 RDD 与子 RDD 之间的依赖关系类型。- `serializer`：序列化器。- `KeyOrdering`：键值排序策略，用于决定子 RDD 的一个分区内，如何根据键值对 <K, V> 类型数据记录进行排序。- `Aggregator`：聚合器，内部包含了多个聚合函数，比较重要的函数有 `createCombiner：V => C`，`mergeValue: (C, V) => C` 以及 `mergeCombiners: (C, C) => C`。例如，对于 `groupByKey` 操作，`createCombiner` 表示把第一个元素放入到集合中，`mergeValue` 表示一个元素添加到集合中，`mergeCombiners` 表示把两个集合进行合并。这些函数被用于 Shuffle 过程中数据的聚合。- `mapSideCombine`：用于指定 Shuffle 过程中是否需要在 map 端进行 combine 操作。如果指定该值为 `true`，由于 combine 操作需要用到聚合器中的相关聚合函数，因此 `Aggregator` 不能为空，否则 Apache Spark 会抛出异常。例如：`groupByKey` 转换操作对应的`ShuffleDependency` 中，`mapSideCombine = false`，而 `reduceByKey` 转换操作中，`mapSideCombine = true`。
+- `rdd`：用于表示 Shuffle 依赖中，子 RDD 所依赖的父 RDD。- `shuffleId`：Shuffle 的 ID 编号，在一个 Spark 应用程序中，每个 Shuffle 的编号都是唯一的。- `shuffleHandle`：Shuffle 句柄，ShuffleHandle 内部一般包含 Shuffle ID、Mapper 的个数以及对应的 Shuffle 依赖，在执行 `ShuffleMapTask` 时候，任务可以通过 `ShuffleManager` 获取得到该句柄，并进一步得到 Shuffle 相关信息。- `partitioner`：分区器，用于决定 Shuffle 过程中 Reducer 的个数（实际上是子 RDD 的分区个数）以及 Map 端的一条数据记录应该分配给哪一个 Reducer，也可以被用在 `CoGroupedRDD` 中，确定父 RDD 与子 RDD 之间的依赖关系类型。- `serializer`：序列化器。- `KeyOrdering`：键值排序策略，用于决定子 RDD 的一个分区内，如何根据键值对 <K, V> 类型数据记录进行排序。- `Aggregator`：聚合器，内部包含了多个聚合函数，比较重要的函数有 `createCombiner：V => C`，`mergeValue: (C, V) => C` 以及 `mergeCombiners: (C, C) => C`。例如，对于 `groupByKey` 操作，`createCombiner` 表示把第一个元素放入到集合中，`mergeValue` 表示一个元素添加到集合中，`mergeCombiners` 表示把两个集合进行合并。这些函数被用于 Shuffle 过程中数据的聚合。- `mapSideCombine`：用于指定 Shuffle 过程中是否需要在 map 端进行 combine 操作。如果指定该值为 `true`，由于 combine 操作需要用到聚合器中的相关聚合函数，因此 `Aggregator` 不能为空，否则 Apache Spark 会抛出异常。例如：`groupByKey` 转换操作对应的`ShuffleDependency` 中，`mapSideCombine = false`，而 `reduceByKey` 转换操作中，`mapSideCombine = true`。
 
 ## 依赖与容错机制
 介绍完依赖的类别和实现之后，回过头来，从分区的角度继续探究 Apache Spark 是如何通过依赖关系来实现容错机制的。下图给出了一张依赖关系图，`fileRDD` 经历了 `map`、`reduce` 以及`filter` 三次转换操作，得到了最终的 RDD，其中，`map`、`filter` 操作对应的依赖为窄依赖，`reduce` 操作对应的是 Shuffle 依赖。
@@ -82,4 +82,4 @@ Shuffle 依赖的对应实现为 `ShuffleDependency` 类，其源码如下。`
 
 ![容错机制 - 1](../media/images/section1/RDDDependencies/ShuffleDependency_PC.png)
 
-如果我们做到计算链的并行计算的话，这就意味着，要么 Shuffle 依赖处父 RDD 的数据在每次需要使用的时候都重复计算一遍，要么想办法把父 RDD 数据保存起来，提供给其余分区的数据计算使用。Apache Spark 采用的是第二种办法，但保存数据的方法可能与想象中的会有所不同，__Spark 把计算链从 Shuffle 依赖处断开__，划分成不同的__阶段（Stage）__，阶段之间存在依赖关系（其实就是 Shuffle 依赖），从而可以构建一张不同阶段之间的__有向无环图（DAG）__。这部分的内容我会在调度一章中细述。
+如果我们做到计算链的并行计算的话，这就意味着，要么 Shuffle 依赖处父 RDD 的数据在每次需要使用的时候都重复计算一遍，要么想办法把父 RDD 数据保存起来，提供给其余分区的数据计算使用。Apache Spark 采用的是第二种办法，但保存数据的方法可能与想象中的会有所不同，__Spark 把计算链从 Shuffle 依赖处断开__，划分成不同的__阶段（Stage）__，阶段之间存在依赖关系（其实就是 Shuffle 依赖），从而可以构建一张不同阶段之间的__有向无环图（DAG）__。这部分的内容我会在调度一章中细述。
