@@ -8,7 +8,7 @@
 	* [优先位置](section1/preferredLocations.md)
 	* [分区函数](section1/partitioner.md)
 	* [持久化](section1/persistence.md)
-	* [检查点](section1/partitioner.md)
+	* [检查点](section1/checkPoint.md)
 
 * [调度](section2/README.md)
 	* [作业、阶段与任务](section1/jobStageAndTask.md)
