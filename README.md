@@ -3,7 +3,7 @@
 ## Overview
 本文档是我去年（2014）年末学习 [Apache Spark](http://spark.apache.org/) 源码时所留下的阅读笔记，原为 Microsoft Word 文档。近期出于毕业求职需要，重温源码，顺带整理了下原文档，转换成 Markdown 文档，修正原文中出现的一些错误，对缺漏之处也做了相应补全。整理过后的文档会放在我的 [Github 仓库](https://github.com/ihainan/SparkInternals) 和 [GitBook](http://ihainan.gitbooks.io/spark-source-code/content/) 上。
 
-__本文档对应的 Apache Spark 源码版本为 {{book.sparkVersion}}__。后期如果时间充裕，会对最新版的源码进行适配。
+__本文档对应的 Apache Spark 源码版本为 {{book.sparkVersion}}__。代码仓库中，不同分支表示不同版本的 Spark。
 
 本人经验、能力以及实验条件实在是有限，在研究过程中难免会有诸多不足。若在阅读本文档时发现有错误与遗漏之处，还望能够提出指正。
 
@@ -41,9 +41,13 @@ __本文档对应的 Apache Spark 源码版本为 {{book.sparkVersion}}__。后�
 
 ![Source Avro](media/images/introduction/IDEA_Mark_Avro_Source.png)
 
-同样，将 spark-hive\_2.10 模块内的 v0.13.0（或者 v0.12.0，__根据编译时候的 Hive 版本决定，默认是 Hive 0.13__） -> src -> main -> scala 目录标记为 Source 目录。
+同样，将 spark-hive\_2.10 模块内的 v0.13.1 -> src -> main -> scala 目录标记为 Source 目录。
 
 ![Source Hive](media/images/introduction/IDEA_Mark_Hive_Source.png)
+
+（__1.4 之前版本无需此操作__）编辑 pom.xml 文件，定位到如下位置，添加 `<scope>compile</scope>`，否则会出现能够顺利编译，运行时抛出异常 `NoClassDefFoundError` 的情况。
+
+![Source Hive](media/images/introduction/IDEA_Maven_pom.png)
 
 点击 Build -> Rebuild Project，等待项目构建完成即可。
 
@@ -54,6 +58,7 @@ __本文档对应的 Apache Spark 源码版本为 {{book.sparkVersion}}__。后�
 	I: Info，表信息，是我对代码的理解。
 	Q: Question，表问题，指我对代码的一些疑惑之处。
 	L: Link，表链接，附上一些有用的参考连接。
+	T: Test，表测试。
 	R: Result，表测试结果。
 
 ![Debug](media/images/introduction/IDEA_Debug.png)

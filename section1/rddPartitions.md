@@ -14,11 +14,11 @@ RDD 内部的数据集合在逻辑上（物理上则不一定）被划分成多�
 
 ``` scala
 /**
- * A partition of an RDD.
+ * An identifier for a partition in an RDD.
  */
 trait Partition extends Serializable {
   /**
-   * Get the split's index within its parent RDD
+   * Get the partition's index within its parent RDD
    */
   def index: Int
 
@@ -35,13 +35,13 @@ RDD 只是数据集的抽象，分区内部并不会存储具体的数据。`Par
   @transient private var partitions_ : Array[Partition] = null  /**   * Implemented by subclasses to return the set of partitions in this RDD. This method will only   * be called once, so it is safe to implement a time-consuming computation in it.   */  protected def getPartitions: Array[Partition]  /**   * Get the array of partitions of this RDD, taking into account whether the   * RDD is checkpointed or not.   */  final def partitions: Array[Partition] = {    checkpointRDD.map(_.partitions).getOrElse {      if (partitions_ == null) {        partitions_ = getPartitions      }      partitions_    }  }
 ```
 
-以 `MappedRDD` 类中的 `getPartitions` 方法为例。
-
+以 `map` 转换操作生成 `MapPartitionsRDD` 类中的 `getPartitions` 方法为例。
+ 
 ``` scala
   override def getPartitions: Array[Partition] = firstParent[T].partitions
 ```
 
-可以看到，`MappedRDD` 的分区实际上与父 RDD 的分区完全一致，这也符合我们对 `map` 转换操作的认知。## 分区个数
+可以看到，`MapPartitionsRDD` 的分区实际上与父 RDD 的分区完全一致，这也符合我们对 `map` 转换操作的认知。## 分区个数
 RDD 分区的一个分配原则是：尽可能使得分区的个数，等于集群核心数目。
 RDD 可以通过创建操作或者转换操作得到。转换操作中，分区的个数会根据转换操作对应多个 RDD 之间的依赖关系确定，窄依赖子 RDD 由父 RDD 分区个数决定，Shuffle 依赖由子 RDD 分区器决定。
 
@@ -53,12 +53,16 @@ RDD 分区的一个分配原则是：尽可能使得分区的个数，等于集�
 ``` scala
   /** Distribute a local Scala collection to form an RDD.
    *
-   * @note Parallelize acts lazily. If `seq` is a mutable collection and is
-   * altered after the call to parallelize and before the first action on the
-   * RDD, the resultant RDD will reflect the modified collection. Pass a copy of
-   * the argument to avoid this.
+   * @note Parallelize acts lazily. If `seq` is a mutable collection and is altered after the call
+   * to parallelize and before the first action on the RDD, the resultant RDD will reflect the
+   * modified collection. Pass a copy of the argument to avoid this.
+   * @note avoid using `parallelize(Seq())` to create an empty `RDD`. Consider `emptyRDD` for an
+   * RDD with no partitions, or `parallelize(Seq[T]())` for an RDD of `T` with empty partitions.
    */
-  def parallelize[T: ClassTag](seq: Seq[T], numSlices: Int = defaultParallelism): RDD[T] = {
+  def parallelize[T: ClassTag](
+      seq: Seq[T],
+      numSlices: Int = defaultParallelism): RDD[T] = withScope {
+    assertNotStopped()
     new ParallelCollectionRDD[T](this, seq, numSlices, Map[Int, Seq[String]]())
   }
 ```
@@ -71,11 +75,11 @@ RDD 分区的一个分配原则是：尽可能使得分区的个数，等于集�
     scheduler.conf.getInt("spark.default.parallelism", totalCores)
 ```
 
-若使用 Apache Mesos 作为集群的资源管理系统，默认分区个数等于 8（为什么？）（见 `MesosSchedulerBackend` 类）。
+若使用 Apache Mesos 作为集群的资源管理系统，默认分区个数等于 8（对 Apache Mesos 不是很了解，根据这个 `TODO`，个人猜测 Apache Spark 暂时还无法获取 Mesos 集群的核心总数）（见 `MesosSchedulerBackend` 类）。
 
 ``` scala
   // TODO: query Mesos for number of cores
-  override def defaultParallelism() = sc.conf.getInt("spark.default.parallelism", 8)
+  override def defaultParallelism(): Int = sc.conf.getInt("spark.default.parallelism", 8)
 ```
 
 其他集群模式（Standalone 或者 Yarn），默认分区个数等于集群中所有核心数目的总和，或者 2，取两者中的较大值（见 `CoarseGrainedSchedulerBackend` 类）。
@@ -88,16 +92,16 @@ RDD 分区的一个分配原则是：尽可能使得分区的个数，等于集�
 对于 `textFile` 方法，默认分区个数等于 `min(defaultParallelism, 2)`（见 `SparkContext` 类），而 `defaultParallelism` 实际上就是 `parallelism` 方法的默认分区值。
 
 ``` scala
-  /** Default min number of partitions for Hadoop RDDs when not given by user */
-  def defaultMinPartitions: Int = math.min(defaultParallelism, 2)
-  
   /**
    * Read a text file from HDFS, a local file system (available on all nodes), or any
    * Hadoop-supported file system URI, and return it as an RDD of Strings.
    */
-  def textFile(path: String, minPartitions: Int = defaultMinPartitions): RDD[String] = {
+  def textFile(
+      path: String,
+      minPartitions: Int = defaultMinPartitions): RDD[String] = withScope {
+    assertNotStopped()
     hadoopFile(path, classOf[TextInputFormat], classOf[LongWritable], classOf[Text],
-      minPartitions).map(pair => pair._2.toString).setName(path)
+      minPartitions).map(pair => pair._2.toString)
   }
 ```
 
@@ -113,7 +117,8 @@ private object ParallelCollectionRDD {
   /**
    * Slice a collection into numSlices sub-collections. One extra thing we do here is to treat Range
    * collections specially, encoding the slices as other Ranges to minimize memory cost. This makes
-   * it efficient to run Spark over RDDs representing large sets of numbers.
+   * it efficient to run Spark over RDDs representing large sets of numbers. And if the collection
+   * is an inclusive Range, we use inclusive range for the last slice.
    */
   def slice[T: ClassTag](seq: Seq[T], numSlices: Int): Seq[Seq[T]] = {
     if (numSlices < 1) {
@@ -129,19 +134,15 @@ private object ParallelCollectionRDD {
       })
     }
     seq match {
-      case r: Range.Inclusive => {
-        val sign = if (r.step < 0) {
-          -1
-        } else {
-          1
-        }
-        slice(new Range(
-          r.start, r.end + sign, r.step).asInstanceOf[Seq[T]], numSlices)
-      }
       case r: Range => {
-        positions(r.length, numSlices).map({
-          case (start, end) =>
+        positions(r.length, numSlices).zipWithIndex.map({ case ((start, end), index) =>
+          // If the range is inclusive, use inclusive range for the last slice
+          if (r.isInclusive && index == numSlices - 1) {
+            new Range.Inclusive(r.start + start * r.step, r.end, r.step)
+          }
+          else {
             new Range(r.start + start * r.step, r.start + end * r.step, r.step)
+          }
         }).toSeq.asInstanceOf[Seq[Seq[T]]]
       }
       case nr: NumericRange[_] => {
@@ -164,6 +165,7 @@ private object ParallelCollectionRDD {
       }
     }
   }
+}
 ```
 
 `textFile` 方法分区内数据的大小则是由 Hadoop API 接口 `FileInputFormat.getSplits` 方法决定（见 `HadoopRDD` 类），得到的每一个分片即为 RDD 的一个分区，分片内数据的大小会受文件大小、文件是否可分割、HDFS 中块大小等因素的影响，但总体而言会是比较均衡的分配。
