@@ -6,7 +6,7 @@
 	* [常见转换操作的依赖图](section1/dependencyGraphs.md)
 	* [计算函数](section1/computeFunction.md)
 	* [优先位置](section1/preferredLocations.md)
-	* [分区函数](section1/partitioner.md)
+	* [分区器](section1/partitioner.md)
 	* [持久化](section1/persistence.md)
 	* [检查点](section1/checkPoint.md)
 

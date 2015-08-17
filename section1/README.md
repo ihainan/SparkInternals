@@ -17,4 +17,4 @@ RDD 作为 Apache Spark 中最为重要的一类数据抽象，同时也是 Apac
 本章后面的小节都将是围着上面的这些问题进行展开，每一节都会回答一个或者多个问题，探索这些问题答案的过程中会配合解析相应的源码实现。我希望通过这种方式，能够从整体的角度去理解 Apache Spark 开发者们如此设计 RDD 的目的，而非单纯机械地一行一行去解释代码的含义。
 
 ## RDD 内部接口
-在 Apache Spark 源码级别，`RDD` 是一个抽象类，我们所使用的 `RDD` 实例，都是 `RDD` 的子类，例如执行 `map` 转换操作之后可以得到一个 `MappedRDD` 实例，执行 `groupByKey` 转换操作之后可以得到一个 `ShuffledRDD` 实例。不同的 `RDD` 子类会根据实际需求实现各自的功能，但无论如何，一个 `RDD` 内部都会包含如下几类接口的全部或者一部分，在后面的小节中，我们会看到，这些接口究竟是如何为实现我们的并行计算目标服务的。- 分区（Partition）相关接口- 依赖（Dependency）相关接口- 计算（Computing）相关接口- 分区器（Partitioner）相关接口（可选）- 首选位置（Prefered Location）相关接口（可选）- 持久化（Persistence）与检查点（Checkpoint）相关接口
+在 Apache Spark 源码级别，`RDD` 是一个抽象类，我们所使用的 `RDD` 实例，都是 `RDD` 的子类，例如执行 `map` 转换操作之后可以得到一个 `MapPartitionsRDD` 实例，执行 `groupByKey` 转换操作之后可以得到一个 `ShuffledRDD` 实例。不同的 `RDD` 子类会根据实际需求实现各自的功能，但无论如何，一个 `RDD` 内部都会包含如下几类接口的全部或者一部分。在后面的小节中，我们就能看到所有的这些接口究竟是如何为实现我们的并行计算目标服务的。- 分区（Partition）相关接口- 依赖（Dependency）相关接口- 计算（Computing）相关接口- 分区器（Partitioner）相关接口（可选）- 首选位置（Prefered Location）相关接口（可选）- 持久化（Persistence）与检查点（Checkpoint）相关接口

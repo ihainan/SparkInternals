@@ -2,9 +2,9 @@
 ## 分区
 先回答第一个问题：RDD 内部，如何表示并行计算的一个计算单元。答案是使用__分区（Partition）__。
 
-RDD 内部的数据集合在逻辑上（物理上则不一定）被划分成多个分片，这样的每一个分片我们将其称为分区，分区的个数会决定并行计算的粒度，而每一个分区数值的计算都是在一个单独的任务中进行，因此并行任务的个数，也是由 RDD（实际上是一个作业的末 RDD）分区的个数决定的，我会在 1.2 小节以及第二章中，具体说明分区与并行计算的关系。
+RDD 内部的数据集合在逻辑上和物理上被划分成多个小子集合，这样的每一个子集合我们将其称为分区，分区的个数会决定并行计算的粒度，而每一个分区数值的计算都是在一个单独的任务中进行，因此并行任务的个数，也是由 RDD（实际上是一个阶段的末 RDD，调度章节会介绍）分区的个数决定的，我会在 1.2 小节以及第二章中，具体说明分区与并行计算的关系。
 
-在后文中，我会用下图所示图形来表示 RDD 以及 RDD 内部的分区，RDD 上方文字表示该 RDD 的类型，分区颜色为紫红色表示该 RDD 执行了持久化操作（`persist`、`Cache`、`checkpoint` 或者数据原本存储在存储介质当中），蓝色表示该 RDD 为普通 RDD。
+在后文中，我会用下图所示图形来表示 RDD 以及 RDD 内部的分区，RDD 上方文字表示该 RDD 的类型或者名字，分区颜色为紫红色表示该 RDD 内数据被缓存到存储介质中，蓝色表示该 RDD 为普通 RDD。 —— 话说这配色真的很丑么……
 
 ![RDD and Partition](../media/images/section1/RDDPartitions/RDDAndPartition.png)
 
@@ -190,3 +190,4 @@ private object ParallelCollectionRDD {
 ## 参考资料
 1. [Spark Configuration - Spark 1.2.0 Documentation](https://spark.apache.org/docs/1.2.0/configuration.html)
 2. [FileInputFormat (Apache Hadoop Main 2.6.0 API)](https://hadoop.apache.org/docs/r2.6.0/api/org/apache/hadoop/mapred/FileInputFormat.html)
+3. [Spark：RDD 理解](http://dtstar.cn/Understanding%20RDD/)
