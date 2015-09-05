@@ -43,7 +43,7 @@ Apache Spark 会使用哈希表来存储所有聚合数据的处理结果，表�
 
 ![插入计算过的数据到非空槽](../media/images/section3/insert_new_combiner_hashmap.png)
 
-到此为止，数据已经被成功地聚合和计算了，当然在实际的过程中需要考虑的问题还很多，例如哈希表冲突解决、大小分配、内存限制等等。Apache Spark 实现了两类哈希表，分别是 `AppendOnlyMap`、`ExternalAppendOnlyMap`，我会在后面专门用一节内容，来介绍这两类哈希表的特性和实现。
+到此为止，数据已经被成功地聚合和计算了，当然在实际的过程中需要考虑的问题还很多，例如哈希表冲突解决、大小分配、内存限制等等。Apache Spark 实现了两类哈希表，分别是 `AppendOnlyMap` 和 `ExternalAppendOnlyMap`，我会在后面专门用一节内容，来介绍这两类哈希表的特性和实现。
 
 接下来，我们思考下其与 MR 机制中聚合 - 计算过程的区别。首先，最明显的区别是，Apache Spark 的聚合 - 计算过程__不需要进行任何排序！！！__这意味着 Apache Spark 节省了排序所消耗的大量时间，代价是最后得到的分区内部数据是无序的；再者，Apache Spark 的聚合 / 计算过程是__同步进行__的，聚合完毕，结果也计算出来，而 Apache Hadoop 需要等聚合完成之后，才能开始数据的计算过程；最后，Apache Spark 将所有的计算操作都限制在了 `createCombiner`、`mergeValue` 以及 `mergeCombiners` 之内，在灵活性之上显然要弱于 Apache Hadoop，例如，Apache Spark 很难通过一次聚合 - 计算过程求得平均数。
 
@@ -55,6 +55,84 @@ Apache Spark 会使用哈希表来存储所有聚合数据的处理结果，表�
 排序 Shuffle 允许 Map 端不进行 `Combine` 操作，这意味着在不指定 `Combiner` 的情况下，排序 Shuffle 机制 Map 端不能使用一张哈希表来存储数据，而是改为用__数据缓存区（Buffer）__存储所有的数据。对于指定 `Combiner` 的情况下，排序 Shuffle 仍然使用哈希表存储数据，Combine 过程与哈希 Shuffle 基本一致。无论是 Buffer 还是 HashMap，每更新一次，都会检查是否需要将现有的数据溢存到磁盘当中，需要的话，__就对数据进行排序__，存储到一个文件中，当所有的数据都更新完毕之后，执行结合操作，把多个文件合并成一个文件，__并且保证每个分区内部数据是有序的__。
 
 两类 Shuffle 机制的 Shuffle 读、Shuffle 写过程的实现我会在后面小节中具体讲解。
+
+### Shuffle 过程
+我们继续从源码的角度，了解 Apache Spark 是如何触发 Shuffle 写和 Shuffle 读过程的。
+
+我们知道，Mapper 本质上就是一个任务。调度章节曾提及过 DAG 调度器会在一个阶段内部划分任务，根据阶段的不同，得到 `ResultTask` 和 `ShuffleMapTask` 两类任务。`ResultTask` 会将计算结果返回给 Driver，`ShuffleMapTask` 则将结果传递给 Shuffle 依赖中的子 RDD。因此我们可以从 `ShuffleMapTask` 入手，观察 Mapper 的大致工作流程。
+
+```scala
+private[spark] class ShuffleMapTask(
+    stageId: Int,
+    taskBinary: Broadcast[Array[Byte]],
+    partition: Partition,
+    @transient private var locs: Seq[TaskLocation])
+  extends Task[MapStatus](stageId, partition.index) with Logging {
+    // 省略部分源码
+    override def runTask(context: TaskContext): MapStatus = {
+	    // Deserialize the RDD using the broadcast variable.
+	    val deserializeStartTime = System.currentTimeMillis()
+	    val ser = SparkEnv.get.closureSerializer.newInstance()
+	    val (rdd, dep) = ser.deserialize[(RDD[_], ShuffleDependency[_, _, _])](
+	      ByteBuffer.wrap(taskBinary.value), Thread.currentThread.getContextClassLoader)
+	    _executorDeserializeTime = System.currentTimeMillis() - deserializeStartTime    
+	    try {
+	      val manager = SparkEnv.get.shuffleManager
+	      writer = manager.getWriter[Any, Any](dep.shuffleHandle, partitionId, context)
+	      writer.write(rdd.iterator(partition, context).asInstanceOf[Iterator[_ <: Product2[Any, Any]]])
+	      return writer.stop(success = true).get
+	    } catch {
+	      case e: Exception =>
+	        // 省略部分源码
+	    }
+  }
+}
+```
+
+由于一个任务对应当前阶段末 RDD 内的一个分区，因此通过 `rdd.iterator(partition, context)` 可以计算得到该分区的数据，这个过程我在 [RDD 计算函数](../section1/computeFunction.html) 小节中已经介绍过。接下来便是执行 Shuffle 写操作，该操作由一个 `ShuffleWriter` 实例通过调用 `write` 接口完成，Apache Spark 从 `ShuffleManager` 实例中获取该 `ShuffleWriter` 对象。
+
+上文提及过，Apache Spark 提供了两类 Shuffle 机制，对应的， `ShuffleManager` 也有两类子类，分别是 `HashShuffleManager` 和 `SortShuffleManager`，__`ShuffleManager` 的主要作用是提供 `ShuffleWriter` 和 `ShuffleReader` 用于 Shuffle 写和 Shuffle 读过程__。`HashShuffleManager` 提供 `HashShuffleWriter` 和 `HashShuffleReader`，而 `SortShffleManager` 提供的是 `SortShuffleWriter` 和 `HashShuffleReader`，可以看到，__哈希 Shuffle 和排序 Shuffle 的唯一区别在于 Shuffle 写过程，读过程完全一致__。
+
+继续来观察 Shuffle 读的触发。Apache Spark 中，聚合器中三个函数是在 `PairRDDFunctions.combineByKey` 方法中指定。可以看到，若新 RDD 与旧 RDD 的分区器不同时，会生成一个 `ShuffledRDD`。
+
+```scala
+  def combineByKey[C](createCombiner: V => C,
+      mergeValue: (C, V) => C,
+      mergeCombiners: (C, C) => C,
+      partitioner: Partitioner,
+      mapSideCombine: Boolean = true,
+      serializer: Serializer = null): RDD[(K, C)] = self.withScope {
+    // 省略部分代码
+    val aggregator = new Aggregator[K, V, C](
+      self.context.clean(createCombiner),
+      self.context.clean(mergeValue),
+      self.context.clean(mergeCombiners))
+    if (self.partitioner == Some(partitioner)) {
+      self.mapPartitions(iter => {
+        val context = TaskContext.get()
+        new InterruptibleIterator(context, aggregator.combineValuesByKey(iter, context))
+      }, preservesPartitioning = true)
+    } else {
+      new ShuffledRDD[K, V, C](self, partitioner)
+        .setSerializer(serializer)
+        .setAggregator(aggregator)
+        .setMapSideCombine(mapSideCombine)
+    }   
+  }   
+```
+
+观察 `ShuffledRDD` 是如何获取分区数据的。与 Shuffle 写过程类似，先从 `ShuffleManager` 中获取 `ShuffleReader`，通过 `ShuffleReader` 的 `read` 接口拉取和计算特定分区中的数据。
+
+```scala
+  override def compute(split: Partition, context: TaskContext): Iterator[(K, C)] = {
+    val dep = dependencies.head.asInstanceOf[ShuffleDependency[K, V, C]]
+    SparkEnv.get.shuffleManager.getReader(dep.shuffleHandle, split.index, split.index + 1, context)
+      .read()
+      .asInstanceOf[Iterator[(K, C)]]
+  }
+```
+
+在后面小节中，我们会进一步分析 `ShuffleWriter.write` 和 `ShuffleReader.read` 的具体实现。
 
 ## 参考资料
 1. [Shuffle 过程 | Apache Spark 的设计与实现](http://spark-internals.books.yourtion.com/markdown/4-shuffleDetails.html)
