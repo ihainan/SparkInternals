@@ -48,6 +48,9 @@ Apache Spark 会使用哈希表来存储所有聚合数据的处理结果，表�
 接下来，我们思考下其与 MR 机制中聚合 - 计算过程的区别。首先，最明显的区别是，Apache Spark 的聚合 - 计算过程__不需要进行任何排序！！！__这意味着 Apache Spark 节省了排序所消耗的大量时间，代价是最后得到的分区内部数据是无序的；再者，Apache Spark 的聚合 / 计算过程是__同步进行__的，聚合完毕，结果也计算出来，而 Apache Hadoop 需要等聚合完成之后，才能开始数据的计算过程；最后，Apache Spark 将所有的计算操作都限制在了 `createCombiner`、`mergeValue` 以及 `mergeCombiners` 之内，在灵活性之上显然要弱于 Apache Hadoop，例如，Apache Spark 很难通过一次聚合 - 计算过程求得平均数。
 
 ### 哈希 Shuffle 与排序 Shuffle
+
+__注：本节内容存在些许较为严重的理解错误，因近期求职较忙，一直未来得及修正，希望没有误导到各位读者，实在是抱歉。__
+
 在 1.1 之前的版本，Apache Spark 仅提供了__哈希 Shuffle（Hash-Based Shuffle）机制__，其实现同我们前面所述的聚合 / 计算过程基本一致，然而如我们上一小节所说的，聚合 / 计算过程后，分区内部的数据是无序的，如果开发者希望有序，就需要调用排序相关的转换操作，例如 `sortBy`、`sortByKey` 等等；再者，哈希 Shuffle 强制要求在 Map 端进行 Combine 操作，对于某些键值重复率不高的数据，Combine 操作反倒会影响效率；另外，哈希 Shuffle 每个 Mapper 会针对每个 Reducer 生成一个数据文件，当 Mapper 和 Reducer 数量比较多的时候，会导致磁盘上生成大量的文件（___为什么不将所有数据放到一个文件里面，并额外生成一个索引文件用于分区的索引呢？___）。
 
 从 1.1 开始，Apache Spark 提供了另一套 Shuffle 机制 —— __排序 Shuffle（Sort-Based Shuffle）__，并且从 1.2 版本开始，把排序 Shuffle 作为默认的 Shuffle 机制，用户可以将配置项 `spark.shuffle.manager` 设置为 `hash` 或者 `sort`，来使用对应的 Shuffle 机制。排序 Shuffle 相比哈希 Shuffle，两者的 Shuffle 读过程是完全一致的，唯一区别在 Shuffle 写过程。
@@ -56,7 +59,7 @@ Apache Spark 会使用哈希表来存储所有聚合数据的处理结果，表�
 
 两类 Shuffle 机制的 Shuffle 读、Shuffle 写过程的实现我会在后面小节中具体讲解。
 
-### Shuffle 过程
+## Shuffle 过程
 我们继续从源码的角度，了解 Apache Spark 是如何触发 Shuffle 写和 Shuffle 读过程的。
 
 我们知道，Mapper 本质上就是一个任务。调度章节曾提及过 DAG 调度器会在一个阶段内部划分任务，根据阶段的不同，得到 `ResultTask` 和 `ShuffleMapTask` 两类任务。`ResultTask` 会将计算结果返回给 Driver，`ShuffleMapTask` 则将结果传递给 Shuffle 依赖中的子 RDD。因此我们可以从 `ShuffleMapTask` 入手，观察 Mapper 的大致工作流程。

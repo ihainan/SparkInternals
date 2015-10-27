@@ -17,7 +17,10 @@
 
 * [Shuffle 过程](section3/README.md)
 	* [Shuffle 写过程](section3/shuffleWrite.md)
+		* [哈希 Shuffle](section3/hashShuffleWriter.md)
+		* [排序 Shuffle](section3/sortShuffleWriter.md)
 	* [Shuffle 读过程](section3/shuffleRead.md)
+	* [Shuffle 过程中的数据存储](section3/shuffleRead.md)
 
 * [存储管理](section4/README.md)
 	* [通信层](section4/communicationLayer.md)
