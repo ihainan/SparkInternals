@@ -53,7 +53,7 @@ Apache Spark 将依赖进一步分为两类，分别是__窄依赖（Narrow Depe
 /** * :: DeveloperApi :: * Represents a one-to-one dependency between ranges of partitions in the parent and child RDDs. * @param rdd the parent RDD * @param inStart the start of the range in the parent RDD * @param outStart the start of the range in the child RDD * @param length the length of the range */@DeveloperApi  class RangeDependency[T](rdd: RDD[T], inStart: Int, outStart: Int, length: Int)  extends NarrowDependency[T](rdd) {  override def getParents(partitionId: Int) = {    if (partitionId >= outStart && partitionId < outStart + length) {      List(partitionId - outStart + inStart)    } else {      Nil    }  }}
 ```
 
-`RangeDepdencency` 类中 `getParents` 的一个示例如下图所示，对于 `UnionRDD` 中编号为 3 的分区，可以计算得到其数据来源于父 RDD 中编号为 1 的分区。
+`RangeDepdencency` 类中 `getParents` 的一个示例如下图所示，对于 `UnionRDD` 中编号为 3 的分区，可以计算得到其数据来源于父 RDD 中编号为 2 的分区。
 
 ![范围依赖](../media/images/section1/RDDDependencies/RangeDependencyExample.png)## Shuffle 依赖
 Shuffle 依赖的对应实现为 `ShuffleDependency` 类，其源码如下。```scala
